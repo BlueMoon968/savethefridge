@@ -1,6 +1,7 @@
 import { Trash2, Calendar } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { getDaysUntilExpiry, getExpiryStatus, formatDate } from '../utils/productUtils';
+import Credits from './Credits'
 
 export default function FridgeView() {
   const { products, removeProduct } = useApp();
