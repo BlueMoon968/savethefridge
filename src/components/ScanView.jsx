@@ -10,26 +10,59 @@ export default function ScanView() {
   const [manualBarcode, setManualBarcode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const scannerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
+  const videoStreamRef = useRef(null);
 
-  useEffect(() => {
-    return () => {
-      stopScanner();
-    };
-  }, []);
-
-  // Cleanup on unmount or view change
-  useEffect(() => {
-    return () => {
+  // Cleanup function to completely stop camera
+  const cleanupCamera = async () => {
+    try {
+      // Stop html5-qrcode scanner
       if (html5QrCodeRef.current) {
-        html5QrCodeRef.current.stop().catch(() => {});
-        const videoElement = document.querySelector('#reader video');
-        if (videoElement && videoElement.srcObject) {
-          const tracks = videoElement.srcObject.getTracks();
-          tracks.forEach(track => track.stop());
+        const scanner = html5QrCodeRef.current;
+        if (scanner.isScanning) {
+          await scanner.stop();
         }
+        await scanner.clear();
+        html5QrCodeRef.current = null;
       }
+
+      // Force stop all video tracks
+      if (videoStreamRef.current) {
+        videoStreamRef.current.getTracks().forEach(track => {
+          track.stop();
+          track.enabled = false;
+        });
+        videoStreamRef.current = null;
+      }
+
+      // Clear video element
+      const videoElement = document.querySelector('#reader video');
+      if (videoElement) {
+        if (videoElement.srcObject) {
+          const tracks = videoElement.srcObject.getTracks();
+          tracks.forEach(track => {
+            track.stop();
+            track.enabled = false;
+          });
+          videoElement.srcObject = null;
+        }
+        videoElement.load();
+      }
+
+      // Clear the reader div
+      const readerDiv = document.getElementById('reader');
+      if (readerDiv) {
+        readerDiv.innerHTML = '';
+      }
+    } catch (err) {
+      console.error("Cleanup error:", err);
+    }
+  };
+
+  // Cleanup on unmount or when leaving scan view
+  useEffect(() => {
+    return () => {
+      cleanupCamera();
     };
   }, []);
 
@@ -40,10 +73,14 @@ export default function ScanView() {
     setIsScanning(true);
 
     try {
-      // First, request camera permission explicitly
-      await navigator.mediaDevices.getUserMedia({ 
+      // Request camera permission first
+      const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment" } 
       });
+      videoStreamRef.current = stream;
+
+      // Small delay to ensure camera is ready
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const html5QrCode = new Html5Qrcode("reader");
       html5QrCodeRef.current = html5QrCode;
@@ -52,20 +89,19 @@ export default function ScanView() {
       const devices = await Html5Qrcode.getCameras();
       
       if (devices && devices.length > 0) {
-        // Prefer back camera, fallback to first available
+        // Find back camera
         const backCamera = devices.find(device => 
           device.label.toLowerCase().includes('back') || 
           device.label.toLowerCase().includes('rear') ||
           device.label.toLowerCase().includes('environment')
         );
-        const cameraId = backCamera ? backCamera.id : devices[0].id;
+        const cameraId = backCamera ? backCamera.id : devices[devices.length - 1].id;
         
         await html5QrCode.start(
           cameraId,
           { 
             fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0
+            qrbox: { width: 250, height: 250 }
           },
           async (decodedText) => {
             await stopScanner();
@@ -77,6 +113,7 @@ export default function ScanView() {
       }
     } catch (err) {
       console.error("Scanner error:", err);
+      await cleanupCamera();
       
       let errorMsg = "Unable to access camera. ";
       
@@ -84,10 +121,10 @@ export default function ScanView() {
         errorMsg += "Please allow camera permissions in your browser settings.";
       } else if (err.name === 'NotFoundError' || err.message.includes('No cameras')) {
         errorMsg += "No camera detected on your device.";
-      } else if (err.name === 'NotReadableError') {
-        errorMsg += "Camera is already in use by another app.";
+      } else if (err.name === 'NotReadableError' || err.message.includes('in use')) {
+        errorMsg += "Please close all other apps using the camera and try again.";
       } else {
-        errorMsg += "Please try manual entry or check browser permissions.";
+        errorMsg += "Please try manual entry or restart your browser.";
       }
       
       setError(errorMsg);
@@ -96,27 +133,10 @@ export default function ScanView() {
   };
 
   const stopScanner = async () => {
-    if (html5QrCodeRef.current) {
-      try {
-        await html5QrCodeRef.current.stop();
-        await html5QrCodeRef.current.clear();
-      } catch (err) {
-        console.error("Error stopping scanner:", err);
-      } finally {
-        html5QrCodeRef.current = null;
-      }
-    }
+    await cleanupCamera();
     setIsScanning(false);
-    
-    // Force release all media tracks
-    const videoElement = document.querySelector('#reader video');
-    if (videoElement && videoElement.srcObject) {
-      const tracks = videoElement.srcObject.getTracks();
-      tracks.forEach(track => track.stop());
-      videoElement.srcObject = null;
-    }
   };
-  
+
   const handleBarcodeScanned = async (barcode) => {
     setIsLoading(true);
     setError(null);
@@ -217,13 +237,13 @@ export default function ScanView() {
                 <div>
                   <p className="text-sm font-semibold text-red-800 mb-1">Camera Access Issue</p>
                   <p className="text-sm text-red-700">{error}</p>
-                  {error.includes('permissions') && (
-                    <div className="mt-2 text-xs text-red-600">
-                      <p className="font-semibold mb-1">How to enable camera:</p>
+                  {error.includes('in use') && (
+                    <div className="mt-2 p-2 bg-red-100 rounded text-xs text-red-600">
+                      <p className="font-semibold mb-1">Try this:</p>
                       <ul className="list-disc ml-4 space-y-1">
-                        <li><strong>Chrome/Edge:</strong> Click the 🔒 or 🎥 icon in the address bar</li>
-                        <li><strong>Safari:</strong> Go to Settings → Safari → Camera</li>
-                        <li><strong>Firefox:</strong> Click the 🛈 icon in address bar → Permissions</li>
+                        <li>Close all other apps and browser tabs</li>
+                        <li>Restart your browser</li>
+                        <li>If issue persists, restart your device</li>
                       </ul>
                     </div>
                   )}
