@@ -19,13 +19,18 @@ export default function ScanView() {
     };
   }, []);
 
-const startScanner = async () => {
+  const startScanner = async () => {
     if (isScanning) return;
     
     setError(null);
     setIsScanning(true);
 
     try {
+      // First, request camera permission explicitly
+      await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment" } 
+      });
+
       const html5QrCode = new Html5Qrcode("reader");
       html5QrCodeRef.current = html5QrCode;
 
@@ -33,29 +38,45 @@ const startScanner = async () => {
       const devices = await Html5Qrcode.getCameras();
       
       if (devices && devices.length > 0) {
-        // Use the back camera if available, otherwise use first camera
-        const cameraId = devices.length > 1 ? devices[1].id : devices[0].id;
+        // Prefer back camera, fallback to first available
+        const backCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear') ||
+          device.label.toLowerCase().includes('environment')
+        );
+        const cameraId = backCamera ? backCamera.id : devices[0].id;
         
         await html5QrCode.start(
-          cameraId, // Use specific camera ID instead of facingMode
+          cameraId,
           { 
-            fps: 10, 
-            qrbox: { width: 250, height: 250 }
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
           },
           async (decodedText) => {
             await stopScanner();
             await handleBarcodeScanned(decodedText);
-          },
-          (errorMessage) => {
-            // Silent error - this fires on every frame without a barcode
           }
         );
       } else {
-        throw new Error("No cameras found");
+        throw new Error("No cameras found on device");
       }
     } catch (err) {
       console.error("Scanner error:", err);
-      setError("Unable to access camera. For file:// protocol, please run with 'npm run dev' or deploy to https://");
+      
+      let errorMsg = "Unable to access camera. ";
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errorMsg += "Please allow camera permissions in your browser settings.";
+      } else if (err.name === 'NotFoundError' || err.message.includes('No cameras')) {
+        errorMsg += "No camera detected on your device.";
+      } else if (err.name === 'NotReadableError') {
+        errorMsg += "Camera is already in use by another app.";
+      } else {
+        errorMsg += "Please try manual entry or check browser permissions.";
+      }
+      
+      setError(errorMsg);
       setIsScanning(false);
     }
   };
@@ -162,8 +183,28 @@ const startScanner = async () => {
           )}
 
           {error && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              {error}
+            <div className="mt-4 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <div>
+                  <p className="text-sm font-semibold text-red-800 mb-1">Camera Access Issue</p>
+                  <p className="text-sm text-red-700">{error}</p>
+                  {error.includes('permissions') && (
+                    <div className="mt-2 text-xs text-red-600">
+                      <p className="font-semibold mb-1">How to enable camera:</p>
+                      <ul className="list-disc ml-4 space-y-1">
+                        <li><strong>Chrome/Edge:</strong> Click the 🔒 or 🎥 icon in the address bar</li>
+                        <li><strong>Safari:</strong> Go to Settings → Safari → Camera</li>
+                        <li><strong>Firefox:</strong> Click the 🛈 icon in address bar → Permissions</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
