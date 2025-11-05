@@ -1,4 +1,4 @@
-# FreshKeep - Virtual Fridge App 🥬
+# SaveTheFridge - Virtual Fridge App 🥬
 
 A modern, responsive web application to track food expiration dates and reduce food waste. Built with React, Vite, and Tailwind CSS.
 
@@ -32,7 +32,7 @@ npm run build
 1. Install Capacitor:
 ```bash
 npm install @capacitor/core @capacitor/cli @capacitor/android
-npx cap init FreshKeep com.freshkeep.app --web-dir=dist
+npx cap init SaveTheFridge com.savethefridge.app --web-dir=dist
 ```
 
 2. Add Android platform:

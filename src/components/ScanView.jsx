@@ -19,6 +19,20 @@ export default function ScanView() {
     };
   }, []);
 
+  // Cleanup on unmount or view change
+  useEffect(() => {
+    return () => {
+      if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.stop().catch(() => {});
+        const videoElement = document.querySelector('#reader video');
+        if (videoElement && videoElement.srcObject) {
+          const tracks = videoElement.srcObject.getTracks();
+          tracks.forEach(track => track.stop());
+        }
+      }
+    };
+  }, []);
+
   const startScanner = async () => {
     if (isScanning) return;
     
@@ -82,17 +96,27 @@ export default function ScanView() {
   };
 
   const stopScanner = async () => {
-    if (html5QrCodeRef.current && isScanning) {
+    if (html5QrCodeRef.current) {
       try {
         await html5QrCodeRef.current.stop();
-        html5QrCodeRef.current = null;
+        await html5QrCodeRef.current.clear();
       } catch (err) {
         console.error("Error stopping scanner:", err);
+      } finally {
+        html5QrCodeRef.current = null;
       }
     }
     setIsScanning(false);
+    
+    // Force release all media tracks
+    const videoElement = document.querySelector('#reader video');
+    if (videoElement && videoElement.srcObject) {
+      const tracks = videoElement.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      videoElement.srcObject = null;
+    }
   };
-
+  
   const handleBarcodeScanned = async (barcode) => {
     setIsLoading(true);
     setError(null);

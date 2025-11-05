@@ -10,7 +10,7 @@ export function AppProvider({ children }) {
 
   // Load products from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem('freshKeepProducts');
+    const saved = localStorage.getItem('saveTheFridgeProducts');
     if (saved) {
       try {
         setProducts(JSON.parse(saved));
@@ -27,7 +27,7 @@ export function AppProvider({ children }) {
 
   // Save products to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('freshKeepProducts', JSON.stringify(products));
+    localStorage.setItem('saveTheFridgeProducts', JSON.stringify(products));
     checkExpirations();
   }, [products]);
 
@@ -54,7 +54,7 @@ export function AppProvider({ children }) {
     // Send browser notification if there are expiring items
     if (newNotifications.length > 0 && Notification.permission === 'granted') {
       const count = newNotifications.length;
-      new Notification('FreshKeep Alert', {
+      new Notification('SaveTheFridge Alert', {
         body: `${count} product${count > 1 ? 's' : ''} expiring soon!`,
         icon: '/vite.svg',
         badge: '/vite.svg'

@@ -26,7 +26,7 @@ export default function Header() {
               </div>
               <div>
                 <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">
-                  FreshKeep
+                  SaveTheFridge
                 </h1>
                 <p className="text-xs text-gray-600">Your Virtual Fridge</p>
               </div>

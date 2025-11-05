@@ -32,6 +32,7 @@ export default function FridgeView() {
         <p className="text-gray-600">
           Tap the scan button below to add products
         </p>
+        <Credits />
       </div>
     );
   }
@@ -97,6 +98,7 @@ export default function FridgeView() {
                 </div>
               </div>
             </div>
+            <Credits />
           </div>
         );
       })}
